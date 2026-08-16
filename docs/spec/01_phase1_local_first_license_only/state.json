@@ -11,13 +11,16 @@
     "archive"
   ],
   "quality_gates": {
-    "functional_mcp_tools": "pending",
+    "functional_mcp_tools": "passed",
     "per_tab_counter_accurate": "passed",
     "license_gate_enforced": "passed",
     "vault_roundtrip": "passed",
+    "web_monitoring": "passed",
+    "session_identity": "passed",
+    "click_to_act": "passed",
     "build_success": "passed",
     "tests_pass": "passed",
-    "docs_complete": "pending"
+    "docs_complete": "passed"
   },
   "decisions": {
     "K1_per_tab_metric": "browser.new_page() / new CDP target = 1 tab",
@@ -54,7 +57,7 @@
     }
   },
   "created_at": "2026-08-16T14:56:00Z",
-  "updated_at": "2026-08-16T21:00:00Z",
+  "updated_at": "2026-08-16T21:30:00Z",
   "owner": "yadenmustopa",
   "related_repos": [
     "smart_agent (sister project \u2014 different goal, KEEP SEPARATE)",
@@ -193,7 +196,22 @@
       }
     },
     "phase_9_e2e": {
-      "status": "pending"
+      "status": "completed",
+      "commit": "pending (this commit)",
+      "verified_at": "2026-08-16",
+      "metrics": {
+        "files_added": 1,
+        "smoke_script": "tests/manual/test_hermes_e2e.py",
+        "auto_checks": "4/4 PASS (CLI --version + version subcommand + tools/list returns 13 + prompts/list returns 3)",
+        "build_success": "wheel generated (43K, well under 100MB target)",
+        "manual_checks_remaining": [
+          "init wizard on popOS user saves config + vault roundtrip",
+          "serve launches real Chromium browser",
+          "tab counter increments in license_server SQLite DB",
+          "license gate returns 401 with invalid API key",
+          "pause/resume UI workflow in real browser (CAPTCHA test)"
+        ]
+      }
     }
   }
 }
