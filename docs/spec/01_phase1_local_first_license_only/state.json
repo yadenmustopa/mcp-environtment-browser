@@ -11,16 +11,16 @@
     "archive"
   ],
   "quality_gates": {
-    "functional_mcp_tools": "passed",
-    "per_tab_counter_accurate": "passed",
-    "license_gate_enforced": "passed",
-    "vault_roundtrip": "passed",
-    "web_monitoring": "passed",
-    "session_identity": "passed",
-    "click_to_act": "passed",
-    "build_success": "passed",
-    "tests_pass": "passed",
-    "docs_complete": "passed"
+    "functional_mcp_tools": "passed [auto: automated: 37 mcp_server tests + 4/4 smoke (tools/list + prompts/list)]",
+    "per_tab_counter_accurate": "passed [auto: automated: 20 threads × 50 increments = 1000 (Phase 2 atomic race test); manual B3 in OWNER_EXECUTION_GUIDE.md]",
+    "license_gate_enforced": "passed [auto: automated: test_license_client.py 5 scenarios (200/401/403/429/network); manual B4]",
+    "vault_roundtrip": "passed [auto: automated: 19 vault tests + encrypted_json 89% coverage; manual B1 (init wizard)]",
+    "web_monitoring": "passed [auto: automated: 8 monitor tests + 100% coverage; manual B2 (localhost:9876)]",
+    "session_identity": "passed [auto: automated: test_browser_executor 44 tests, position tracking verified; manual B5 (multi-tab labels)]",
+    "click_to_act": "passed [auto: automated: test_monitor focus_session endpoint; manual B2 (curl POST /focus)]",
+    "build_success": "passed [auto: automated: python -m build → wheel 44KB generated]",
+    "tests_pass": "passed [auto: automated: 183 unit tests PASS, 87.29% coverage (exceeds 80% gate)]",
+    "docs_complete": "passed [auto: automated: README + install.sh + state.json + SPEC_REVIEW all in sync]"
   },
   "decisions": {
     "K1_per_tab_metric": "browser.new_page() / new CDP target = 1 tab",
@@ -60,7 +60,7 @@
   "updated_at": "2026-08-16T21:30:00Z",
   "owner": "yadenmustopa",
   "related_repos": [
-    "smart_agent (sister project \u2014 different goal, KEEP SEPARATE)",
+    "smart_agent (sister project — different goal, KEEP SEPARATE)",
     "cua-driver (reuse infra)"
   ],
   "consistency_fixes_applied": {
@@ -68,7 +68,7 @@
       "source_review": "SPEC_REVIEW_2026-08-16.md",
       "owner_approval": "chat 2026-08-16 'sesuaikan saja' (trust agent)",
       "applied_at": "2026-08-16T16:30:00Z",
-      "fix": "Opsi A: canonical 13 tools per spec.md \u00a76.4. Patched 00_overview.md and 10_mcp_server.md Module Map from '10 tools' to '13 tools'",
+      "fix": "Opsi A: canonical 13 tools per spec.md §6.4. Patched 00_overview.md and 10_mcp_server.md Module Map from '10 tools' to '13 tools'",
       "files_changed": [
         "docs/spec/01_phase1_local_first_license_only/refactor/00_overview.md (line 45, 136)",
         "docs/spec/01_phase1_local_first_license_only/refactor/10_mcp_server.md (line 13)"
@@ -78,7 +78,7 @@
       "source_review": "SPEC_REVIEW_2026-08-16.md",
       "owner_approval": "chat 2026-08-16 'sesuaikan saja' (trust agent)",
       "applied_at": "2026-08-16T16:30:00Z",
-      "fix": "Opsi A: canonical 3 prompts per spec.md \u00a76.4.1 + refactor/10_mcp_server.md. Patched 'Hanya 2 Prompt' wording to '3 Prompt'. Prompt 3 human_intervention_workflow still needs implementation in Phase 6",
+      "fix": "Opsi A: canonical 3 prompts per spec.md §6.4.1 + refactor/10_mcp_server.md. Patched 'Hanya 2 Prompt' wording to '3 Prompt'. Prompt 3 human_intervention_workflow still needs implementation in Phase 6",
       "files_changed": [
         "docs/spec/01_phase1_local_first_license_only/spec.md (line 299)",
         "docs/spec/01_phase1_local_first_license_only/refactor/10_mcp_server.md (line 427)"
@@ -89,7 +89,7 @@
       "source_review": "SPEC_REVIEW_2026-08-16.md",
       "owner_approval": "chat 2026-08-16 'sesuaikan saja' (trust agent)",
       "applied_at": "2026-08-16T16:30:00Z",
-      "fix": "Opsi B: removed GET /tab/usage from 20_license_server.md (no caller in Phase 1, anti-speculative per 95_anti_overengineering_guard.md). 4 endpoints remain per spec.md \u00a76.5",
+      "fix": "Opsi B: removed GET /tab/usage from 20_license_server.md (no caller in Phase 1, anti-speculative per 95_anti_overengineering_guard.md). 4 endpoints remain per spec.md §6.5",
       "files_changed": [
         "docs/spec/01_phase1_local_first_license_only/refactor/20_license_server.md (Module Map line 18, spec section line 98-112 deleted)"
       ]
@@ -113,7 +113,7 @@
         "files_added": 8,
         "tests_added": 33,
         "test_coverage": "91.44%",
-        "atomic_race_tested": "20 threads \u00d7 50 increments = 1000 (perfect atomic)"
+        "atomic_race_tested": "20 threads × 50 increments = 1000 (perfect atomic)"
       }
     },
     "phase_3_vault_backend": {
@@ -202,7 +202,7 @@
       "metrics": {
         "files_added": 1,
         "smoke_script": "tests/manual/test_hermes_e2e.py",
-        "auto_checks": "4/4 PASS (CLI --version + version subcommand + tools/list returns 13 + prompts/list returns 3)",
+        "auto_checks": "4/4 PASS (CLI --version + version + tools/list returns 13 + prompts/list returns 3)",
         "build_success": "wheel generated (43K, well under 100MB target)",
         "manual_checks_remaining": [
           "init wizard on popOS user saves config + vault roundtrip",
@@ -210,8 +210,18 @@
           "tab counter increments in license_server SQLite DB",
           "license gate returns 401 with invalid API key",
           "pause/resume UI workflow in real browser (CAPTCHA test)"
-        ]
+        ],
+        "owner_execution_guide": "docs/OWNER_EXECUTION_GUIDE.md (B1-B5 step-by-step)",
+        "manual_checks_pending": [
+          "B1: mcp-env-browser init di popOS user (AC #1)",
+          "B2: serve launches real Chromium (AC #2)",
+          "B3: per-tab counter di license_server SQLite DB (AC #4)",
+          "B4: license gate invalid key → 401 (AC #5)",
+          "B5: pause/resume UI workflow CAPTCHA test"
+        ],
+        "owner_approval_received": "2026-08-16 'saya izinkan' (chat)"
       }
     }
-  }
+  },
+  "archive_intent": "Phase 1 closure is BLOCKED on manual acceptance checks B1-B5 (per OWNER_EXECUTION_GUIDE.md). Owner 'saya izinkan' approval received 2026-08-16, but current_stage stays at 'awaiting_owner_approval' until owner runs the 5 checks + commits closure (Phase 1 → 'archive')."
 }
