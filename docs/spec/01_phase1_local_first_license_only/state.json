@@ -197,7 +197,7 @@
     },
     "phase_9_e2e": {
       "status": "completed",
-      "commit": "pending (this commit)",
+      "commit": "4b1b4ff (+ state b8fd481)",
       "verified_at": "2026-08-16",
       "metrics": {
         "files_added": 1,
