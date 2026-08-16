@@ -108,13 +108,16 @@ def send_stdio_request(request: dict[str, object], timeout: float = 10.0) -> dic
         request_with_id = dict(request)
         if request_with_id.get("id") == 1:
             request_with_id["id"] = 2
-        # Send both lines (initialize first, then the actual request)
-        payload = json.dumps(initialize_request) + "\n" + json.dumps(request_with_id) + "\n"
-        proc.stdin.write(payload)
+        # Send in two writes with a flush + sleep between, so server can process
+        # initialize before prompts/tools list arrives.
+        proc.stdin.write(json.dumps(initialize_request) + "\n")
         proc.stdin.flush()
-        # Small delay to let server process initialize before next request
+        # Generous delay so server processes initialize fully
         import time as _time
 
+        _time.sleep(1.0)
+        proc.stdin.write(json.dumps(request_with_id) + "\n")
+        proc.stdin.flush()
         _time.sleep(0.5)
         stdout, stderr = proc.communicate(timeout=timeout)
         # Parse responses — skip first (initialize response), take second
