@@ -23,18 +23,21 @@ classifiers = [
 # Core dependencies (per refactor/30_client_arch.md §Dependencies lines 343-373)
 dependencies = [
     "click>=8.1",
-    "mcp>=0.5",
+    "mcp>=0.5",  # pulls starlette>=1.0 via sse-starlette
     "httpx>=0.25",
     "playwright>=1.40",
     "structlog>=24.1",
     "secretstorage>=3.3 ; sys_platform == 'linux'",
     "cryptography>=41.0",  # for encrypted_json backend
+    # FastAPI is a main dep (not server extra) because monitor.py imports it at module
+    # level. fastapi>=0.115 required for starlette 1.x compat (mcp's sse-starlette
+    # requires starlette>=1.0 which breaks fastapi <0.115).
+    "fastapi>=0.115",
 ]
 
 [project.optional-dependencies]
-# License server extras (per refactor/30_client_arch.md line 360)
+# Server extras (per refactor/30_client_arch.md line 360)
 server = [
-    "fastapi>=0.100",
     "uvicorn[standard]>=0.23",
     "pydantic>=2.0",
     "pydantic[email]>=2.0",  # EmailStr validation for /license/register
