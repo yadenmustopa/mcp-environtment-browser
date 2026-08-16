@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>mcp-env-browser Monitor</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #1e1e1e; color: #ddd; margin: 0; padding: 16px; }
+    h1 { font-size: 18px; margin: 0 0 16px; }
+    .meta { color: #888; font-size: 13px; margin-bottom: 16px; }
+    .grid { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 16px; }
+    .card {
+      flex: 0 0 auto;
+      width: 320px;
+      border: 2px solid #444;
+      border-radius: 6px;
+      padding: 12px;
+      background: #2a2a2a;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .card:hover { border-color: #007bff; }
+    .card.paused { border-color: #ffc107; }
+    .card.captcha { border-color: #dc3545; }
+    .label { font-weight: bold; margin-bottom: 4px; }
+    .position { color: #888; font-size: 12px; }
+    .url { color: #6c9; font-size: 12px; word-break: break-all; margin: 8px 0; }
+    .status {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-size: 11px;
+      text-transform: uppercase;
+      font-weight: bold;
+    }
+    .status.active { background: #28a745; color: white; }
+    .status.paused { background: #ffc107; color: black; }
+    .status.captcha { background: #dc3545; color: white; }
+    .status.error { background: #6c757d; color: white; }
+    .age { color: #888; font-size: 11px; margin-top: 4px; }
+    img { width: 100%; height: auto; margin-top: 8px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>mcp-env-browser Monitor</h1>
+  <div class="meta">
+    Auto-refresh every 2s. Click card to bring browser window to front.
+    <span id="last-update"></span>
+  </div>
+  <div id="grid" class="grid"></div>
+
+  <script>
+    async function refresh() {
+      try {
+        const r = await fetch('/api/sessions?include_screenshot=true');
+        const sessions = await r.json();
+        render(sessions);
+        document.getElementById('last-update').textContent =
+          `Last updated: ${new Date().toLocaleTimeString()}`;
+      } catch (e) {
+        document.getElementById('grid').innerHTML =
+          `<p style="color: #dc3545;">Connection lost: ${e.message}. Retrying...</p>`;
+      }
+    }
+
+    function render(sessions) {
+      const grid = document.getElementById('grid');
+      if (sessions.length === 0) {
+        grid.innerHTML = '<p style="color: #888;">No active sessions. Agent is idle.</p>';
+        return;
+      }
+      grid.innerHTML = sessions.map(s => `
+        <div class="card ${s.status}" onclick="focusSession('${s.session_id}')">
+          <div class="label">${escapeHtml(s.label)}</div>
+          <div class="position">Tab ${s.position} · ${s.status.toUpperCase()}</div>
+          <div class="url">${escapeHtml(s.url)}</div>
+          <div class="age">${formatAge(s.age_seconds)} old</div>
+          ${s.last_screenshot_b64
+            ? `<img src="data:image/png;base64,${s.last_screenshot_b64}" alt="${escapeHtml(s.label)}" />`
+            : '<p style="color: #888; font-size: 12px;">No screenshot</p>'}
+        </div>
+      `).join('');
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function formatAge(seconds) {
+      if (seconds < 60) return `${seconds}s`;
+      if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+      return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
+    }
+
+    async function focusSession(id) {
+      try {
+        await fetch(`/api/sessions/${id}/focus`, {method: 'POST'});
+      } catch (e) {
+        alert(`Failed to focus session: ${e.message}`);
+      }
+    }
+
+    setInterval(refresh, 2000);
+    refresh();
+  </script>
+</body>
+</html>
