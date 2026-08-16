@@ -48,6 +48,8 @@ dev = [
     "httpx>=0.25",  # also used by tests
     "mypy>=1.7",
     "ruff>=0.1",
+    "build>=1.0",  # `python -m build` for wheel/sdist verification
+    "wheel>=0.40",  # build backend fallback
 ]
 
 [project.urls]
