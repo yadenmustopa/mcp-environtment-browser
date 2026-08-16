@@ -1,0 +1,99 @@
+{
+  "slug": "01_phase1_local_first_license_only",
+  "title": "Phase 1: Local-First + License Server Only",
+  "status": "planning",
+  "current_stage": "awaiting_owner_approval",
+  "stages": [
+    "draft_spec",
+    "awaiting_owner_approval",
+    "implementation",
+    "testing",
+    "archive"
+  ],
+  "quality_gates": {
+    "functional_mcp_tools": "pending",
+    "per_tab_counter_accurate": "pending",
+    "license_gate_enforced": "pending",
+    "vault_roundtrip": "pending",
+    "build_success": "pending",
+    "tests_pass": "pending",
+    "docs_complete": "pending"
+  },
+  "decisions": {
+    "K1_per_tab_metric": "browser.new_page() / new CDP target = 1 tab",
+    "K2_credential_location": "local",
+    "K2_browser_location": "local",
+    "K3_subscription_model": "dashboard_later_phase1_dev_free",
+    "K4_anti_piracy_strategy": "license_gate_only",
+    "K5_protected_layer": "main_mcp_code_via_binary_distribution",
+    "K6_counter_sync": "real_time_per_tab_hit_server",
+    "K6_unregistered_user": "agent_cannot_use_feature",
+    "K7_hardware_bound_key": "no_phase1_simple_first",
+    "stack": "python_fastapi_click_playwright",
+    "license_repo": "MIT",
+    "branch_default": "master"
+  },
+  "strategies_evaluated": {
+    "A_local_first_license_only": {
+      "score": "22/25",
+      "chosen": true
+    },
+    "D_hybrid_credential_server": {
+      "score": "16/25",
+      "chosen": false,
+      "phase": 2
+    },
+    "B_server_rendered_encrypted": {
+      "score": "10/25",
+      "chosen": false
+    },
+    "C_server_browser_farm": {
+      "score": "5/25",
+      "chosen": false,
+      "reason": "K2_violated"
+    }
+  },
+  "created_at": "2026-08-16T14:56:00Z",
+  "updated_at": "2026-08-16T16:30:00Z",
+  "owner": "yadenmustopa",
+  "related_repos": [
+    "smart_agent (sister project \u2014 different goal, KEEP SEPARATE)",
+    "cua-driver (reuse infra)"
+  ],
+  "consistency_fixes_applied": {
+    "I1_tools_count": {
+      "source_review": "SPEC_REVIEW_2026-08-16.md",
+      "owner_approval": "chat 2026-08-16 'sesuaikan saja' (trust agent)",
+      "applied_at": "2026-08-16T16:30:00Z",
+      "fix": "Opsi A: canonical 13 tools per spec.md \u00a76.4. Patched 00_overview.md and 10_mcp_server.md Module Map from '10 tools' to '13 tools'",
+      "files_changed": [
+        "docs/spec/01_phase1_local_first_license_only/refactor/00_overview.md (line 45, 136)",
+        "docs/spec/01_phase1_local_first_license_only/refactor/10_mcp_server.md (line 13)"
+      ]
+    },
+    "I2_prompts_count": {
+      "source_review": "SPEC_REVIEW_2026-08-16.md",
+      "owner_approval": "chat 2026-08-16 'sesuaikan saja' (trust agent)",
+      "applied_at": "2026-08-16T16:30:00Z",
+      "fix": "Opsi A: canonical 3 prompts per spec.md \u00a76.4.1 + refactor/10_mcp_server.md. Patched 'Hanya 2 Prompt' wording to '3 Prompt'. Prompt 3 human_intervention_workflow still needs implementation in Phase 6",
+      "files_changed": [
+        "docs/spec/01_phase1_local_first_license_only/spec.md (line 299)",
+        "docs/spec/01_phase1_local_first_license_only/refactor/10_mcp_server.md (line 427)"
+      ],
+      "open_for_implementation": "Prompt 3 human_intervention_workflow code path (list_prompts, get_prompt, test_prompts) added to refactor/15_mcp_server_phase6_breakdown.md"
+    },
+    "I3_endpoint_set": {
+      "source_review": "SPEC_REVIEW_2026-08-16.md",
+      "owner_approval": "chat 2026-08-16 'sesuaikan saja' (trust agent)",
+      "applied_at": "2026-08-16T16:30:00Z",
+      "fix": "Opsi B: removed GET /tab/usage from 20_license_server.md (no caller in Phase 1, anti-speculative per 95_anti_overengineering_guard.md). 4 endpoints remain per spec.md \u00a76.5",
+      "files_changed": [
+        "docs/spec/01_phase1_local_first_license_only/refactor/20_license_server.md (Module Map line 18, spec section line 98-112 deleted)"
+      ]
+    }
+  },
+  "spec_review_recommendation_followed": "All 3 Tier-1 recommendations from SPEC_REVIEW applied per 'sesuaikan saja' standing owner approval (chat 2026-08-16). Per roadmap_migration.md #4 'jangan silent update' rule: every change logged here in consistency_fixes_applied with chat timestamp + source review.",
+  "implementation_plan": "PLAN_PHASES.md",
+  "phase6_breakdown": "refactor/15_mcp_server_phase6_breakdown.md",
+  "spec_review_doc": "SPEC_REVIEW_2026-08-16.md"
+}
