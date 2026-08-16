@@ -4,10 +4,26 @@
 
 ---
 
-## Status: PLANNING (Draft Spec — belum ada implementasi)
+## Status: Phase 1 COMPLETE (2026-08-16)
 
-Repo ini masih dalam **fase planning**. Belum ada kode yang ditulis.
-Lihat [`docs/spec/01_phase1_local_first_license_only/spec.md`](docs/spec/01_phase1_local_first_license_only/spec.md)
+Repo ini sudah menyelesaikan **Phase 1** (Strategi A: Local-First + License
+Server Only) — 9 phase implementation closed, 21 logical commits, 176 unit
+tests PASS, 87.24% coverage, `hermes verify --json` → ok: true.
+
+| Metric | Value |
+|---|---|
+| Phase completed | 9/9 (Phase 1-9 + bootstrap) |
+| Quality gates | 10/10 passed |
+| Unit tests | 176 passed, 1 skipped |
+| Coverage | 87.24% (gate ≥80%) |
+| MCP tools | 13 (per spec §6.4) |
+| MCP prompts | 3 (per spec §6.4.1) |
+| License server endpoints | 4 (per spec §6.5) |
+| Build | wheel 43KB generated |
+| Manual validation | 5 items pending owner (init/serve/DB counter/license gate/pause-resume) |
+
+Lihat [`docs/spec/01_phase1_local_first_license_only/state.json`](docs/spec/01_phase1_local_first_license_only/state.json)
+untuk SSOT fase + quality gates. Lihat [`docs/spec/01_phase1_local_first_license_only/spec.md`](docs/spec/01_phase1_local_first_license_only/spec.md)
 untuk latar belakang, scope, dan strategi implementasi fase 1.
 
 ---
@@ -87,12 +103,35 @@ credential mentah**.
 
 | Phase | Strategi | Status |
 |---|---|---|
-| Phase 1 | A. Local-first + license-server-only | 📝 DRAFT spec |
+| Phase 1 | A. Local-first + license-server-only | ✅ COMPLETE (2026-08-16) |
 | Phase 2 | D. Hybrid credential-from-server + local browser | 📋 ROADMAP |
 | Phase 3 | Multi-tenant + per-target rate limit | 📋 ROADMAP |
 
 Lihat [`roadmap_migration.md`](docs/spec/01_phase1_local_first_license_only/roadmap_migration.md)
 untuk transisi detail.
+
+## Quick Start (setelah install.sh)
+
+```bash
+# 1. Install (idempotent)
+bash install.sh && bash install.sh
+
+# 2. Start license server (di background)
+mcp-env-browser-license-server serve --port 8765 &
+
+# 3. Register admin + get API key (sekali)
+curl -X POST http://localhost:8765/license/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"owner@mcp-env-browser.local","plan":"dev"}'
+
+# 4. Init client config
+mcp-env-browser init --server-url http://localhost:8765 --api-key <key>
+
+# 5. Start MCP stdio + monitoring UI
+mcp-env-browser serve
+# → MCP stdio untuk agent
+# → http://localhost:9876 untuk monitoring UI
+```
 
 ---
 

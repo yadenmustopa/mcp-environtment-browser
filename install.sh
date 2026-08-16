@@ -74,24 +74,33 @@ else
   fi
 fi
 
-# === Step 5: Verify (Phase 1: import check, karena CLI plugin Phase 8) ===
+# === Step 5: Verify ===
 echo "[5/5] Verifying installation..."
-if "$VENV_PATH/bin/python" -c "import mcp_env_browser; print('  ✅ mcp_env_browser version:', mcp_env_browser.__version__)" 2>/dev/null; then
-  : # success
+if "$VENV_PATH/bin/python" -c "
+from mcp_env_browser import __version__
+import mcp_env_browser.cli
+import mcp_env_browser.mcp_server
+import mcp_env_browser.monitor
+print(f'  ✅ mcp_env_browser v{__version__}')
+print('  ✅ cli/mcp_server/monitor modules importable')
+" 2>/dev/null; then
+  echo "[5/5] ✅ Installation verified"
 else
-  echo "  WARN: package not yet implemented (Phase 1 expected — akan datang di commit berikutnya)"
+  echo "  WARN: package import failed — check $VENV_PATH/bin/python -c 'import mcp_env_browser'"
 fi
 
 echo ""
 echo "✅ mcp-env-browser Phase 1 install selesai."
 echo ""
-echo "Next steps (akan implemented per Phase 1-9 PLAN_PHASES.md):"
-echo "  1. Phase 2 — License server: '$VENV_PATH/bin/mcp-env-browser-license-server' (coming)"
-echo "  2. Phase 8 — First-time init CLI: '$VENV_PATH/bin/mcp-env-browser init'"
-echo "  3. Phase 8 — Start MCP stdio: '$VENV_PATH/bin/mcp-env-browser serve'"
-echo "  4. Phase 9 — Setup Hermes Agent .mcp.json — example:"
+echo "Next steps (semua implemented di Phase 1-9):"
+echo "  1. Start license server: '$VENV_PATH/bin/mcp-env-browser-license-server serve --port 8765 &'"
+echo "  2. Register API key: curl -X POST http://localhost:8765/license/register -d '{\"email\":\"you@x\",\"plan\":\"dev\"}'"
+echo "  3. First-time init: '$VENV_PATH/bin/mcp-env-browser init --server-url http://localhost:8765 --api-key <key>'"
+echo "  4. Start MCP stdio: '$VENV_PATH/bin/mcp-env-browser serve'"
+echo "  5. Setup Hermes Agent .mcp.json — example:"
 echo '     {"mcpServers": {"mcp-env-browser": {"command": "'"$VENV_PATH/bin/mcp-env-browser"'", "args": ["serve"]}}}}'
 echo ""
 echo "Repo: $REPO_URL"
 echo "Spec: $REPO_URL/blob/master/docs/spec/01_phase1_local_first_license_only/spec.md"
+echo "State: $REPO_URL/blob/master/docs/spec/01_phase1_local_first_license_only/state.json"
 echo ""
