@@ -1,0 +1,74 @@
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+**/*.egg-info/
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+
+# Type checking
+.mypy_cache/
+.ruff_cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Secrets — JANGAN PERNAH commit
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+config.json
+
+# Local logs / runtime data
+*.log
+logs/
+*.pid
+*.sock
+
+# PyInstaller
+*.spec.bak
+
+# Playwright (per refactor/30_client_arch.md — biar pip bisa pilih lagi)
+.playwright/
+
+# Project-specific runtime
+src/mcp_env_browser.egg-info/
+src/license_server.egg-info/

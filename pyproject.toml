@@ -1,0 +1,121 @@
+[project]
+name = "mcp-env-browser"
+version = "0.1.0"
+description = "MCP server untuk credential vault + browser execution broker (Phase 1: Strategi A Local-First)"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "yadenmustopa", email = "owner@mcp-env-browser.local"},
+]
+keywords = ["mcp", "browser-automation", "credential-vault", "agent"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+# Core dependencies (per refactor/30_client_arch.md §Dependencies lines 343-373)
+dependencies = [
+    "click>=8.1",
+    "mcp>=0.5",
+    "httpx>=0.25",
+    "playwright>=1.40",
+    "structlog>=24.1",
+    "secretstorage>=3.3 ; sys_platform == 'linux'",
+    "cryptography>=41.0",  # for encrypted_json backend
+]
+
+[project.optional-dependencies]
+# License server extras (per refactor/30_client_arch.md line 360)
+server = [
+    "fastapi>=0.100",
+    "uvicorn[standard]>=0.23",
+    "pydantic>=2.0",
+    "alembic>=1.13",
+]
+
+# Dev tooling
+dev = [
+    "pytest>=7.4",
+    "pytest-asyncio>=0.21",
+    "pytest-cov>=4.1",
+    "httpx>=0.25",  # also used by tests
+    "mypy>=1.7",
+    "ruff>=0.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/yadenmustopa/mcp-environtment-browser"
+Repository = "https://github.com/yadenmustopa/mcp-environtment-browser.git"
+
+[project.scripts]
+# Entry points (per refactor/30_client_arch.md line 371-373 + 40_distribution.md)
+mcp-env-browser = "mcp_env_browser.cli:cli"
+mcp-env-browser-license-server = "license_server.server:run"
+
+# ============================================================================
+# Tooling configuration
+# ============================================================================
+
+[tool.setuptools.packages.find]
+# Source layout (per refactor/00_overview.md §File Map)
+where = ["src"]
+include = ["mcp_env_browser*", "license_server*"]
+
+[tool.ruff]
+# Ruff config per AGENTS.md §3 default ("Linting | ruff")
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+]
+ignore = ["E501"]  # line too long — handled by formatter
+
+[tool.mypy]
+# Mypy per AGENTS.md §3 default ("Type checking | mypy --strict (incremental)")
+python_version = "3.10"
+strict = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+disallow_untyped_defs = true
+ignore_missing_imports = false
+
+[[tool.mypy.overrides]]
+# Opaque 3rd party without stubs
+module = ["secretstorage.*", "playwright.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+# Pytest per AGENTS.md §3 default ("Testing | pytest + pytest-asyncio")
+minversion = "7.4"
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=mcp_env_browser",
+    "--cov=license_server",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-fail-under=80",  # per spec.md §7 #9 Tests ≥80% coverage
+]
+
+[build-system]
+# PEP 621 build backend
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
