@@ -107,6 +107,13 @@ ignore_missing_imports = false
 module = ["secretstorage.*", "playwright.*"]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+# MCP Server decorators (Server.list_tools/get_prompt/etc) return untyped
+# wrappers — mypy sees the decorated coroutines as untyped.
+# Phase 6 reality: we cannot type these decorators without upstream fixes.
+module = ["mcp_env_browser.mcp_server"]
+disable_error_code = ["no-untyped-call", "untyped-decorator"]
+
 [tool.pytest.ini_options]
 # Pytest per AGENTS.md §3 default ("Testing | pytest + pytest-asyncio")
 minversion = "7.4"
