@@ -463,11 +463,25 @@ def _build_browser_executor(
 ) -> Any:
     """Build BrowserExecutor (Phase 5).
 
-    headless flag from config (default False per knowledge §3 line 132-133).
+    headless flag precedence (highest first):
+    1. MCP_BROWSER_HEADLESS env var ("true"/"1" → True)
+    2. cfg["browser_headless"] (config.json)
+    3. Default False (per knowledge §3 — TikTok/Google blocking)
+
+    browser_args from MCP_BROWSER_ARGS env var (sandbox-friendly,
+    comma-separated).
     """
     from mcp_env_browser.browser import BrowserExecutor
 
-    headless = bool(cfg.get("browser_headless", False))
+    # Env var precedence (for sandbox/container deploys)
+    env_headless = os.environ.get("MCP_BROWSER_HEADLESS", "").strip().lower()
+    if env_headless in ("true", "1", "yes"):
+        headless = True
+    elif env_headless in ("false", "0", "no"):
+        headless = False
+    else:
+        headless = bool(cfg.get("browser_headless", False))
+
     return BrowserExecutor(license_client=license_client, vault=vault, headless=headless)
 
 

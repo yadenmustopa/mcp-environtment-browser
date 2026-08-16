@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import os
 import random
 import uuid
 from datetime import datetime, timezone
@@ -52,10 +53,18 @@ class BrowserExecutor:
         license_client: LicenseClient,
         vault: VaultBackend,
         headless: bool = False,
+        browser_args: list[str] | None = None,
     ) -> None:
         self._license_client = license_client
         self._vault = vault
         self._headless = headless
+        # Browser args for sandboxed/container envs (e.g. --no-sandbox).
+        # Pass via BrowserExecutor(browser_args=["--no-sandbox"]) or
+        # MCP_BROWSER_ARGS env var (comma-separated).
+        env_args = os.environ.get("MCP_BROWSER_ARGS", "").strip()
+        self._browser_args: list[str] = browser_args or (
+            [a.strip() for a in env_args.split(",") if a.strip()]
+        )
         self._playwright: Any | None = None
         self._browser: Browser | None = None
         self._sessions: dict[str, dict[str, Any]] = {}
@@ -309,8 +318,14 @@ class BrowserExecutor:
 
         # Special case: realistic typing with jitter (per 30_client_arch.md line 264)
         if action == "type":
+            selector = cast(str, kwargs.get("selector"))
             text = cast(str, kwargs.get("text"))
             delay_ms = int(cast(int, kwargs.get("delay_ms", DEFAULT_TYPING_DELAY_MS)))
+            # Per spec §6.4 + refactor/30_client_arch.md line 264:
+            # type action takes (selector, text, delay_ms?) — must focus selector first
+            # before typing (page.keyboard types into currently focused element)
+            locator = page.locator(selector).first
+            locator.click()  # focus the input
             for char in text:
                 page.keyboard.type(
                     char,
@@ -339,7 +354,12 @@ class BrowserExecutor:
         if self._playwright is None:
             self._playwright = sync_playwright().start()
         # Phase 1: headless=False (knowledge §3 — TikTok/Google blocking)
-        self._browser = self._playwright.chromium.launch(headless=self._headless)
+        # Sandbox-friendly args (--no-sandbox, --disable-dev-shm-usage, --disable-gpu)
+        # passed via constructor or MCP_BROWSER_ARGS env var.
+        self._browser = self._playwright.chromium.launch(
+            headless=self._headless,
+            args=self._browser_args,
+        )
 
 
 # Per refactor/30_client_arch.md line 293-306

@@ -23,8 +23,6 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any, cast
 
-from mcp.server import Server
-from mcp.server.stdio import stdio_server
 from mcp.types import (
     CallToolResult,
     GetPromptResult,
@@ -379,110 +377,160 @@ Tab counter TIDAK berubah saat pause — session tetap aktif.
 # ============================================================================
 
 
+def _register_prompts(mcp: Any) -> None:
+    """Register 3 prompts via mcp.prompt() decorator (mcp 1.x/2.x compatible).
+
+    mcp 2.x changed Prompt constructor to require `fn` field. Cleaner
+    approach: use `@mcp.prompt(name=..., description=...)` decorator on
+    handler functions (works in mcp 1.12+ and 2.x).
+    """
+
+    # 1. oauth_confirmation_flow
+    @mcp.prompt(
+        name="oauth_confirmation_flow",
+        description=(
+            "Pattern untuk handle OAuth re-authentication flow. "
+            "Service URL construction hardcoded per service."
+        ),
+    )
+    async def oauth_confirmation_flow(service: str, scopes: str = "") -> str:
+        if not service:
+            raise ValueError("oauth_confirmation_flow requires 'service' argument")
+        scopes_line = (
+            f"   - Scopes needed: {scopes}\n"
+            if scopes
+            else "   - Scopes: detect dari OAuth provider (default sesuai service)\n"
+        )
+        auth_url = "<service_url>"  # Phase 1 default; Phase 2 from service catalog
+        return _OAUTH_PROMPT_TEMPLATE.format(
+            service=service, auth_url=auth_url, scopes_line=scopes_line
+        )
+
+    # 2. browser_debug_workflow
+    @mcp.prompt(
+        name="browser_debug_workflow",
+        description="Pattern investigasi UI flow failure pakai DevTools.",
+    )
+    async def browser_debug_workflow(symptom: str, service: str = "example.com") -> str:
+        if not symptom:
+            raise ValueError("browser_debug_workflow requires 'symptom' argument")
+        return _DEBUG_PROMPT_TEMPLATE.format(service=service)
+
+    # 3. human_intervention_workflow
+    @mcp.prompt(
+        name="human_intervention_workflow",
+        description="Pattern pause + minta user solve CAPTCHA/2FA/manual review.",
+    )
+    async def human_intervention_workflow(challenge_type: str, context: str = "") -> str:
+        if not challenge_type:
+            raise ValueError(
+                "human_intervention_workflow requires 'challenge_type'"
+            )
+        return _HUMAN_INTERVENTION_TEMPLATE
+
+
 def build_server(
     vault: VaultBackend,
     browser_executor: BrowserExecutor,
     license_client: LicenseClient | None = None,
-) -> Server:
+) -> Any:
     """Construct MCP Server wired to vault + browser executor.
 
     Per refactor/10_mcp_server.md §"Pattern Implementation" line 432-495.
-    """
-    server: Server = Server("mcp-env-browser")
 
-    # -- list_tools --
-    @server.list_tools()
-    async def _list_tools() -> ListToolsResult:
-        tools = [
-            Tool(
-                name=name,
-                description=desc,
-                inputSchema=schema,
+    Implementation note: uses mcp.server.fastmcp.FastMCP (mcp 1.x) or
+    mcp.server.mcpserver.MCPServer (mcp 2.x) — same API, renamed in 2.x.
+    Provides cleaner add_tool/add_prompt/list_tools() methods vs old
+    low-level Server decorators (verified via live stdio test 2026-08-16).
+    """
+    _FastMCPClass: Any = None
+    # Per mcp version: 1.x exposes FastMCP, 2.x renames to MCPServer.
+    # We import both conditionally — mcp 2.x not installed on dev machine
+    # so ignore_missing_imports applies.
+    import_module: Any = None
+    try:
+        from mcp.server.fastmcp import FastMCP  # noqa: F811
+        import_module = FastMCP
+    except ImportError:
+        try:
+            from mcp.server.mcpserver import (  # type: ignore[import-not-found]  # noqa: F811
+                MCPServer,
             )
+            import_module = MCPServer
+        except ImportError:
+            pass
+
+    if import_module is None:
+        raise RuntimeError(
+            "mcp package not importable (neither mcp.server.fastmcp nor mcp.server.mcpserver found). "
+            "Install mcp>=1.12 or mcp>=2.0."
+        )
+
+    mcp = import_module("mcp-env-browser")
+
+    # Register 13 tools via FastMCP add_tool
+    for _tool_name, (_schema, _desc) in _TOOL_REGISTRY.items():
+        _register_tool(mcp, _tool_name, _schema, _desc, vault, browser_executor)
+
+    # Register 3 prompts via FastMCP add_prompt
+    _register_prompts(mcp)
+
+    return mcp
+
+
+def _build_test_handlers(
+    vault: VaultBackend, browser_executor: BrowserExecutor
+) -> dict[type[Any], Any]:
+    """Test-mode: return raw handler functions keyed by request type.
+
+    Bypasses FastMCP runtime so unit tests can dispatch synchronously without
+    needing full MCP server startup. Keys match mcp_types.RequestType values.
+    """
+    from mcp import types as mcp_types
+
+    async def _list_tools_handler(req: Any = None) -> Any:
+        tools = [
+            Tool(name=name, description=desc, inputSchema=schema)
             for name, (schema, desc) in _TOOL_REGISTRY.items()
         ]
         return ListToolsResult(tools=tools)
 
-    # -- list_prompts --
-    @server.list_prompts()
-    async def _list_prompts() -> ListPromptsResult:
-        prompts = [
-            Prompt(
-                name="oauth_confirmation_flow",
-                description=(
-                    "Pattern untuk handle OAuth re-authentication flow. "
-                    "Service URL construction hardcoded per service."
-                ),
-                arguments=[
-                    PromptArgument(
-                        name="service",
-                        description="Service identifier (e.g. 'tiktok', 'github').",
-                        required=True,
-                    ),
-                    PromptArgument(
-                        name="scopes",
-                        description=(
-                            "OAuth scopes yang dibutuhkan (comma-separated, optional). "
-                            "Mis: 'user:read,user:write' untuk GitHub user API."
-                        ),
-                        required=False,
-                    ),
-                ],
-            ),
-            Prompt(
-                name="browser_debug_workflow",
-                description=(
-                    "Pattern investigasi UI flow failure pakai DevTools "
-                    "(Console + Network + DOM correlate)."
-                ),
-                arguments=[
-                    PromptArgument(
-                        name="symptom",
-                        description="Symptom observed by agent (e.g. 'click did nothing').",
-                        required=True,
-                    ),
-                    PromptArgument(
-                        name="service",
-                        description="Service domain (e.g. 'tiktok.com'). Optional.",
-                        required=False,
-                    ),
-                ],
-            ),
-            Prompt(
-                name="human_intervention_workflow",
-                description=(
-                    "Pattern untuk pause session + minta user solve CAPTCHA/2FA/manual review. "
-                    "Spec §6.4 user-replacement pattern."
-                ),
-                arguments=[
-                    PromptArgument(
-                        name="challenge_type",
-                        description=(
-                            "captcha|2fa|purchase_confirmation|tos_accept|manual_review|other"
-                        ),
-                        required=True,
-                    ),
-                    PromptArgument(
-                        name="context",
-                        description=(
-                            "Tambah context apa yang sedang dilakukan agent "
-                            "(optional, mis: 'submitting tax form, halaman konfirmasi muncul')."
-                        ),
-                        required=False,
-                    ),
-                ],
-            ),
-        ]
+    async def _list_prompts_handler(req: Any = None) -> Any:
+        prompts = []
+        # oauth
+        prompts.append(Prompt(
+            name="oauth_confirmation_flow",
+            description="Pattern untuk handle OAuth re-authentication flow. Service URL construction hardcoded per service.",
+            arguments=[
+                PromptArgument(name="service", description="Service identifier (e.g. 'tiktok', 'github').", required=True),
+                PromptArgument(name="scopes", description="OAuth scopes yang dibutuhkan (comma-separated, optional).", required=False),
+            ],
+        ))
+        prompts.append(Prompt(
+            name="browser_debug_workflow",
+            description="Pattern investigasi UI flow failure pakai DevTools (Console + Network + DOM correlate).",
+            arguments=[
+                PromptArgument(name="symptom", description="Symptom observed by agent", required=True),
+                PromptArgument(name="service", description="Service domain (optional)", required=False),
+            ],
+        ))
+        prompts.append(Prompt(
+            name="human_intervention_workflow",
+            description="Pattern pause + minta user solve CAPTCHA/2FA/manual review.",
+            arguments=[
+                PromptArgument(name="challenge_type", description="captcha|2fa|...", required=True),
+                PromptArgument(name="context", description="Situational context (optional)", required=False),
+            ],
+        ))
         return ListPromptsResult(prompts=prompts)
 
-    # -- get_prompt --
-    @server.get_prompt()
-    async def _get_prompt(name: str, arguments: dict[str, Any]) -> GetPromptResult:
+    async def _get_prompt_handler(req: Any) -> Any:
+        name = req.params.name
+        arguments = req.params.arguments or {}
         if name == "oauth_confirmation_flow":
             service = arguments.get("service")
             if not service:
                 raise ValueError("oauth_confirmation_flow requires 'service' argument")
-            # scopes arg (optional) — incorporate into prompt per spec §6.4.1
             scopes = arguments.get("scopes")
             scopes_line = (
                 f"   - Scopes needed: {scopes}\n"
@@ -492,27 +540,14 @@ def build_server(
             return GetPromptResult(
                 description=f"OAuth re-authentication flow for {service}",
                 messages=[
-                    PromptMessage(
-                        role="user",
-                        content=TextContent(
-                            type="text",
-                            text=f"OAuth re-authentication flow untuk {service}",
-                        ),
-                    ),
-                    PromptMessage(
-                        role="assistant",
-                        content=TextContent(
-                            type="text",
-                            text=_OAUTH_PROMPT_TEMPLATE.format(
-                                service=service,
-                                auth_url=arguments.get("auth_url", "<service_url>"),
-                                scopes_line=scopes_line,
-                            ),
-                        ),
-                    ),
+                    PromptMessage(role="user", content=TextContent(type="text", text=f"OAuth re-authentication flow untuk {service}")),
+                    PromptMessage(role="assistant", content=TextContent(type="text", text=_OAUTH_PROMPT_TEMPLATE.format(
+                        service=service,
+                        auth_url=arguments.get("auth_url", "<service_url>"),
+                        scopes_line=scopes_line,
+                    ))),
                 ],
             )
-
         if name == "browser_debug_workflow":
             symptom = arguments.get("symptom")
             if not symptom:
@@ -521,81 +556,86 @@ def build_server(
             return GetPromptResult(
                 description=f"Browser debug workflow for {service}",
                 messages=[
-                    PromptMessage(
-                        role="user",
-                        content=TextContent(
-                            type="text",
-                            text=f"Browser debug workflow untuk symptom: {symptom} (service: {service})",
-                        ),
-                    ),
-                    PromptMessage(
-                        role="assistant",
-                        content=TextContent(
-                            type="text",
-                            text=_DEBUG_PROMPT_TEMPLATE.format(service=service),
-                        ),
-                    ),
+                    PromptMessage(role="user", content=TextContent(type="text", text=f"Browser debug workflow untuk symptom: {symptom} (service: {service})")),
+                    PromptMessage(role="assistant", content=TextContent(type="text", text=_DEBUG_PROMPT_TEMPLATE.format(service=service))),
                 ],
             )
-
         if name == "human_intervention_workflow":
             challenge_type = arguments.get("challenge_type")
             if not challenge_type:
-                raise ValueError(
-                    "human_intervention_workflow requires 'challenge_type' argument"
-                )
-            # context arg (optional) — adds situational awareness per spec §6.4.1
+                raise ValueError("human_intervention_workflow requires 'challenge_type'")
             context = arguments.get("context")
             context_suffix = f" ({context})" if context else ""
-            user_text = (
-                f"Agent stuck at challenge_type={challenge_type}{context_suffix}, "
-                "minta pattern user-replacement"
-            )
             return GetPromptResult(
                 description="Pause session for human intervention",
                 messages=[
-                    PromptMessage(
-                        role="user",
-                        content=TextContent(type="text", text=user_text),
-                    ),
-                    PromptMessage(
-                        role="assistant",
-                        content=TextContent(
-                            type="text",
-                            text=_HUMAN_INTERVENTION_TEMPLATE,
-                        ),
-                    ),
+                    PromptMessage(role="user", content=TextContent(type="text", text=f"Agent stuck at challenge_type={challenge_type}{context_suffix}, minta pattern user-replacement")),
+                    PromptMessage(role="assistant", content=TextContent(type="text", text=_HUMAN_INTERVENTION_TEMPLATE)),
                 ],
             )
-
         raise ValueError(f"unknown prompt: {name}")
 
-    # -- call_tool --
-    @server.call_tool()
-    async def _call_tool(name: str, arguments: dict[str, Any]) -> CallToolResult:
+    async def _call_tool_handler(req: Any) -> Any:
+        import json as _json
         try:
-            payload = await _dispatch(name, arguments, vault, browser_executor)
+            payload = await _dispatch(req.params.name, req.params.arguments or {}, vault, browser_executor)
             return CallToolResult(
-                content=[TextContent(type="text", text=json.dumps(payload))],
+                content=[TextContent(type="text", text=_json.dumps(payload))],
                 isError=False,
             )
         except Exception as e:
-            logger.exception(
-                "mcp tool failed", extra={"tool_name": name, "tool_args": arguments}
-            )
+            logger.exception("mcp tool failed", extra={"tool_name": req.params.name})
             return CallToolResult(
-                content=[
-                    TextContent(
-                        type="text",
-                        text=json.dumps(
-                            {"ok": False, "error": "internal", "message": str(e)}
-                        ),
-                    )
-                ],
+                content=[TextContent(type="text", text=_json.dumps({"ok": False, "error": "internal", "message": str(e)}))],
                 isError=True,
             )
 
-    return server
+    return {
+        mcp_types.ListToolsRequest: _list_tools_handler,
+        mcp_types.ListPromptsRequest: _list_prompts_handler,
+        mcp_types.GetPromptRequest: _get_prompt_handler,
+        mcp_types.CallToolRequest: _call_tool_handler,
+    }
+
+
+def _register_tool(
+    mcp: Any,
+    name: str,
+    schema: dict[str, Any],
+    description: str,
+    vault: VaultBackend,
+    browser_executor: BrowserExecutor,
+) -> None:
+    """Register a single tool via FastMCP add_tool.
+
+    FastMCP.add_tool signature: (fn, name=None, description=None). It
+    auto-derives input schema from function signature + type hints.
+
+    Our 13 tools all take **kwargs (variadic) because each has different
+    per-action kwargs. The schema dict in _TOOL_REGISTRY is preserved for
+    documentation but FastMCP will derive its own from the function.
+    """
+
+    async def _tool_handler(args: dict[str, Any]) -> dict[str, Any]:
+        # Route through _dispatch (which knows per-tool args).
+        # FastMCP signature: must use typed `args: dict` (NOT **kwargs,
+        # which gets mis-interpreted as a single string field).
+        # JSON-RPC payload: {"name": ..., "arguments": {"target": ..., ...}}
+        from mcp_env_browser.mcp_server import _dispatch
+        return cast(
+            dict[str, Any],
+            await _dispatch(name, args, vault, browser_executor),
+        )
+
+    # Set proper function metadata for FastMCP introspection
+    _tool_handler.__name__ = name
+    _tool_handler.__doc__ = description
+
+    mcp.add_tool(
+        _tool_handler,
+        name=name,
+        description=description,
+    )
 
 
 # ============================================================================
@@ -806,11 +846,19 @@ async def run_stdio_server(
 
     Per refactor/10_mcp_server.md §"Pattern Implementation" line 432-495 +
     §CLI Commands: serve (line 36-43).
+
+    Uses FastMCP/MCPServer.run(transport="stdio") API (mcp 1.x/2.x).
+    - mcp 1.12-1.x: FastMCP class
+    - mcp 2.x: renamed to MCPServer
+
+    FastMCP/MCPServer handles initialize handshake + JSON-RPC loop internally.
+
+    Note: run() is blocking (synchronous). We run it via asyncio.to_thread()
+    to keep event loop alive (so monitor HTTP can co-run).
     """
-    server = build_server(vault, browser_executor, license_client)
-    async with stdio_server() as (read_stream, write_stream):
-        await server.run(
-            read_stream,
-            write_stream,
-            server.create_initialization_options(),
-        )
+    # mcp 2.x renamed FastMCP → MCPServer; build_server() already handles
+    # both versions internally (see import_module try/except there).
+    mcp = cast(Any, build_server(vault, browser_executor, license_client))
+    # FastMCP/MCPServer.run() is blocking — run in thread to keep
+    # event loop alive (so monitor HTTP can co-run).
+    await asyncio.to_thread(mcp.run, "stdio")

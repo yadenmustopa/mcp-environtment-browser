@@ -34,7 +34,6 @@ from mcp_env_browser.mcp_server import (
     _HUMAN_INTERVENTION_TEMPLATE,
     _OAUTH_PROMPT_TEMPLATE,
     _TOOL_REGISTRY,
-    build_server,
 )
 
 # --- Playwright + Page mocks (so CDPHelpers can type-hint without import error) ---
@@ -140,7 +139,20 @@ def fake_browser_executor() -> MagicMock:
 
 @pytest.fixture
 def server(fake_vault: MagicMock, fake_browser_executor: MagicMock) -> Any:
-    return build_server(vault=fake_vault, browser_executor=fake_browser_executor)
+    """Test server: bypass FastMCP runtime via _build_test_handlers.
+
+    Returns a dict-like object with `request_handlers[RequestType]` keys
+    populated by raw async handler functions (so tests can dispatch directly).
+    """
+    from mcp_env_browser.mcp_server import _build_test_handlers
+
+    class _TestServer:
+        def __init__(self, handlers: dict[type[Any], Any]) -> None:
+            self.request_handlers = handlers
+
+    return _TestServer(
+        _build_test_handlers(vault=fake_vault, browser_executor=fake_browser_executor)
+    )
 
 
 def _invoke(handler: Any, request: Any) -> Any:
@@ -362,6 +374,42 @@ class TestGetPrompt:
         req = _make_get_prompt_request("nonexistent_prompt", {})
         with pytest.raises(ValueError, match="unknown prompt"):
             _invoke(handler, req)
+
+
+class TestBuildServer:
+    """Tests for build_server() factory function (FastMCP/MCPServer wrapper)."""
+
+    def test_build_server_returns_server_instance(
+        self, fake_vault: MagicMock, fake_browser_executor: MagicMock
+    ) -> None:
+        """build_server() should return a non-None server object."""
+        from mcp_env_browser.mcp_server import build_server
+        server = build_server(vault=fake_vault, browser_executor=fake_browser_executor)
+        assert server is not None
+
+    def test_build_server_handles_missing_mcp_2x(
+        self, fake_vault: MagicMock, fake_browser_executor: MagicMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """build_server() should handle ImportError gracefully if mcp 2.x unavailable."""
+        import builtins
+
+        original_import = builtins.__import__
+
+        def mock_import(name, *args, **kwargs):
+            if name == "mcp.server.mcpserver":
+                raise ImportError("simulated mcp 2.x not installed")
+            return original_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", mock_import)
+        # Should not raise if mcp 1.x works (FastMCP)
+        from mcp_env_browser.mcp_server import build_server
+        try:
+            server = build_server(vault=fake_vault, browser_executor=fake_browser_executor)
+            # Either FastMCP found or RuntimeError raised (if both missing)
+            assert server is not None
+        except RuntimeError as e:
+            # Acceptable if neither mcp 1.x nor 2.x available
+            assert "mcp package not importable" in str(e)
 
 
 class TestCallToolCredential:

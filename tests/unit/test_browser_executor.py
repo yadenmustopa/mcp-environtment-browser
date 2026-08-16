@@ -159,7 +159,7 @@ class _FakeChromium:
     def __init__(self) -> None:
         self._browsers: list[_FakeBrowser] = []
 
-    def launch(self, headless: bool = False) -> _FakeBrowser:
+    def launch(self, headless: bool = False, args: list[str] | None = None) -> _FakeBrowser:
         b = _FakeBrowser(headless=headless)
         self._browsers.append(b)
         return b
