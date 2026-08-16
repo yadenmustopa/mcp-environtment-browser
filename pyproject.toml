@@ -37,6 +37,7 @@ server = [
     "fastapi>=0.100",
     "uvicorn[standard]>=0.23",
     "pydantic>=2.0",
+    "pydantic[email]>=2.0",  # EmailStr validation for /license/register
     "alembic>=1.13",
 ]
 
@@ -85,6 +86,12 @@ select = [
     "UP",  # pyupgrade
 ]
 ignore = ["E501"]  # line too long — handled by formatter
+
+[tool.ruff.lint.per-file-ignores]
+# FastAPI Depends() di argument default adalah idiom resmi untuk dependency injection
+"src/license_server/api/*.py" = ["B008"]
+"src/license_server/server.py" = ["B008"]
+"src/mcp_env_browser/mcp_server.py" = ["B008"]  # Phase 6 preparation
 
 [tool.mypy]
 # Mypy per AGENTS.md §3 default ("Type checking | mypy --strict (incremental)")
