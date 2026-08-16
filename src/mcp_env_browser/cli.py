@@ -370,36 +370,47 @@ def serve(no_monitor: bool, monitor_host: str, monitor_port: int) -> None:
     vault = _build_vault()
     browser_executor = _build_browser_executor(license_client, vault, cfg)
 
-    # Start monitor in background (per refactor §45 line 290-296)
-    monitor_task = None
-    if not no_monitor:
-        import uvicorn
-
-        from mcp_env_browser import monitor
-        from mcp_env_browser.monitor import set_browser_executor
-
-        set_browser_executor(browser_executor)
-
-        config = uvicorn.Config(
-            monitor.app,
-            host=monitor_host,
-            port=monitor_port,
-            log_level="warning",
-        )
-        server = uvicorn.Server(config)
-        monitor_task = asyncio.create_task(server.serve())
-        log.info("monitor.start", url=f"http://{monitor_host}:{monitor_port}")
-
-    # Run MCP stdio in main loop (per refactor §10_mcp_server §serve)
+    # Run monitor (background) + MCP stdio (foreground) in same asyncio loop
     from mcp_env_browser.mcp_server import run_stdio_server
 
-    try:
+    if no_monitor:
+        # No monitor — just run stdio
         asyncio.run(run_stdio_server(vault, browser_executor, license_client))
+        return
+
+    # With monitor: start uvicorn in same loop
+    import uvicorn
+
+    from mcp_env_browser import monitor
+    from mcp_env_browser.monitor import set_browser_executor
+
+    set_browser_executor(browser_executor)
+
+    config = uvicorn.Config(
+        monitor.app,
+        host=monitor_host,
+        port=monitor_port,
+        log_level="warning",
+    )
+    uvi_server = uvicorn.Server(config)
+
+    async def run_both() -> None:
+        monitor_task = asyncio.create_task(uvi_server.serve())
+        log.info("monitor.start", url=f"http://{monitor_host}:{monitor_port}")
+        try:
+            await run_stdio_server(vault, browser_executor, license_client)
+        finally:
+            monitor_task.cancel()
+            try:
+                await monitor_task
+            except (asyncio.CancelledError, Exception):
+                pass
+
+    try:
+        asyncio.run(run_both())
     except KeyboardInterrupt:
         log.info("mcp_env_browser.shutdown")
     finally:
-        if monitor_task is not None:
-            monitor_task.cancel()
         browser_executor.close()
 
 
