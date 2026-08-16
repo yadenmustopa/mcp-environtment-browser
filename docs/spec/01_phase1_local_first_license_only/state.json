@@ -54,7 +54,7 @@
     }
   },
   "created_at": "2026-08-16T14:56:00Z",
-  "updated_at": "2026-08-16T20:30:00Z",
+  "updated_at": "2026-08-16T21:00:00Z",
   "owner": "yadenmustopa",
   "related_repos": [
     "smart_agent (sister project \u2014 different goal, KEEP SEPARATE)",
@@ -180,7 +180,17 @@
       }
     },
     "phase_8_cli": {
-      "status": "pending"
+      "status": "completed",
+      "commit": "32268e5",
+      "verified_at": "2026-08-16",
+      "metrics": {
+        "files_added": 2,
+        "tests_added": 12,
+        "subcommands": 5,
+        "logging": "structlog stderr + ~/.local/share/mcp-env-browser/logs/{date}.log",
+        "config_chmod": "600 (POSIX only)",
+        "pyinstaller_build": "deferred (Phase 2 / per spec §40_distribution)"
+      }
     },
     "phase_9_e2e": {
       "status": "pending"
