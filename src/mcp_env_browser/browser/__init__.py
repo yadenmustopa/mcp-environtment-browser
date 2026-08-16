@@ -357,8 +357,14 @@ _ACTION_HANDLERS: dict[str, Any] = {
     ),
     "hover": lambda p, **kw: p.locator(cast(str, kw["selector"])).hover(),
     "screenshot": lambda p, **kw: {
+        # Per spec §6.4 + refactor/10_mcp_server.md line 268:
+        # clip = {x, y, width, height} in CSS pixels (optional)
+        # full_page = bool (optional, default false)
         "base64": base64.b64encode(
-            p.screenshot(full_page=bool(kw.get("full_page", False)))
+            p.screenshot(
+                full_page=bool(kw.get("full_page", False)),
+                clip=kw.get("clip"),
+            )
         ).decode()
     },
     "wait_for_selector": lambda p, **kw: p.locator(cast(str, kw["selector"])).wait_for(

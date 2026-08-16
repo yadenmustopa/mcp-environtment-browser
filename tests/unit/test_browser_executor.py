@@ -62,7 +62,7 @@ class _FakePage:
     def title(self) -> str:
         return self._title
 
-    def screenshot(self, full_page: bool = False) -> bytes:
+    def screenshot(self, full_page: bool = False, clip: dict[str, object] | None = None) -> bytes:
         # 1x1 PNG-ish sentinel
         return b"PNGFAKE"
 
@@ -519,6 +519,30 @@ class TestBrowserExecutorAction:
         import base64
 
         assert base64.b64decode(result["base64"]) == b"PNGFAKE"
+
+    def test_action_screenshot_with_clip(
+        self, executor: BrowserExecutor
+    ) -> None:
+        """clip arg passed through to page.screenshot(clip=...) per refactor §10_mcp_server line 268."""
+        s = executor.connect(
+            target="https://example.com", credential_key="c", label="X"
+        )
+        page = executor._sessions[s["session_id"]]["page"]
+        with patch.object(page, "screenshot", return_value=b"CLIPPED") as mock_shot:
+            result = executor.action(
+                s["session_id"],
+                "screenshot",
+                clip={"x": 10, "y": 20, "width": 300, "height": 200},
+            )
+        # Verify page.screenshot called with clip kwarg
+        mock_shot.assert_called_once_with(
+            full_page=False,
+            clip={"x": 10, "y": 20, "width": 300, "height": 200},
+        )
+        # Verify result is base64-encoded CLIPPED
+        import base64
+
+        assert base64.b64decode(result["base64"]) == b"CLIPPED"
 
     def test_action_evaluate_returns_value(self, executor: BrowserExecutor) -> None:
         s = executor.connect(

@@ -155,6 +155,18 @@ _BROWSER_ACTION_SCHEMA: dict[str, Any] = {
         "from_selector": {"type": "string"},
         "to_selector": {"type": "string"},
         "full_page": {"type": "boolean", "default": False},
+        "clip": {
+            "type": "object",
+            "description": "Crop region for screenshot: {x, y, width, height} in CSS pixels",
+            "properties": {
+                "x": {"type": "number"},
+                "y": {"type": "number"},
+                "width": {"type": "number"},
+                "height": {"type": "number"},
+            },
+            "required": ["x", "y", "width", "height"],
+            "additionalProperties": False,
+        },
         "timeout_ms": {"type": "integer"},
         "js_code": {"type": "string"},
         "value": {"type": "string"},
@@ -289,7 +301,7 @@ Pattern berikut untuk handle OAuth re-authentication flow:
 1. Detect: cek response tool sebelumnya untuk error code "oauth_required"
 2. Open auth URL: panggil smart_connect_browser dengan auth_url={auth_url}
    (URL construction hardcoded per service, lihat knowledge.md §OAuth URLs)
-3. Inform user: kasih instruksi di response text ke user:
+{scopes_line}3. Inform user: kasih instruksi di response text ke user:
    "Silakan login manual di browser yang terbuka. Sistem akan otomatis detect selesai."
 4. Poll vault: panggil smart_list_credentials tiap 5 detik, cek apakah
    credential_key={service}_oauth ter-update
@@ -407,6 +419,14 @@ def build_server(
                         description="Service identifier (e.g. 'tiktok', 'github').",
                         required=True,
                     ),
+                    PromptArgument(
+                        name="scopes",
+                        description=(
+                            "OAuth scopes yang dibutuhkan (comma-separated, optional). "
+                            "Mis: 'user:read,user:write' untuk GitHub user API."
+                        ),
+                        required=False,
+                    ),
                 ],
             ),
             Prompt(
@@ -442,6 +462,14 @@ def build_server(
                         ),
                         required=True,
                     ),
+                    PromptArgument(
+                        name="context",
+                        description=(
+                            "Tambah context apa yang sedang dilakukan agent "
+                            "(optional, mis: 'submitting tax form, halaman konfirmasi muncul')."
+                        ),
+                        required=False,
+                    ),
                 ],
             ),
         ]
@@ -454,6 +482,13 @@ def build_server(
             service = arguments.get("service")
             if not service:
                 raise ValueError("oauth_confirmation_flow requires 'service' argument")
+            # scopes arg (optional) — incorporate into prompt per spec §6.4.1
+            scopes = arguments.get("scopes")
+            scopes_line = (
+                f"   - Scopes needed: {scopes}\n"
+                if scopes
+                else "   - Scopes: detect dari OAuth provider (default sesuai service)\n"
+            )
             return GetPromptResult(
                 description=f"OAuth re-authentication flow for {service}",
                 messages=[
@@ -471,6 +506,7 @@ def build_server(
                             text=_OAUTH_PROMPT_TEMPLATE.format(
                                 service=service,
                                 auth_url=arguments.get("auth_url", "<service_url>"),
+                                scopes_line=scopes_line,
                             ),
                         ),
                     ),
@@ -508,18 +544,19 @@ def build_server(
                 raise ValueError(
                     "human_intervention_workflow requires 'challenge_type' argument"
                 )
+            # context arg (optional) — adds situational awareness per spec §6.4.1
+            context = arguments.get("context")
+            context_suffix = f" ({context})" if context else ""
+            user_text = (
+                f"Agent stuck at challenge_type={challenge_type}{context_suffix}, "
+                "minta pattern user-replacement"
+            )
             return GetPromptResult(
                 description="Pause session for human intervention",
                 messages=[
                     PromptMessage(
                         role="user",
-                        content=TextContent(
-                            type="text",
-                            text=(
-                                f"Agent stuck at challenge_type={challenge_type}, "
-                                "minta pattern user-replacement"
-                            ),
-                        ),
+                        content=TextContent(type="text", text=user_text),
                     ),
                     PromptMessage(
                         role="assistant",

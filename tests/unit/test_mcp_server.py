@@ -194,6 +194,21 @@ class TestListTools:
             assert tool.inputSchema.get("type") == "object"
             assert "properties" in tool.inputSchema
 
+    def test_browser_action_schema_has_clip(self, server: Any) -> None:
+        """clip arg declared in smart_browser_action inputSchema per spec §6.4."""
+        handler = server.request_handlers[mcp_types.ListToolsRequest]
+        result = _invoke(handler, mcp_types.ListToolsRequest())
+        inner = result.root if hasattr(result, "root") else result
+        tools = inner.tools if hasattr(inner, "tools") else inner
+        browser_action = next(t for t in tools if t.name == "smart_browser_action")
+        props = browser_action.inputSchema["properties"]
+        assert "clip" in props
+        # clip is object with x/y/width/height
+        assert props["clip"]["type"] == "object"
+        clip_props = props["clip"]["properties"]
+        assert set(clip_props.keys()) == {"x", "y", "width", "height"}
+        assert props["clip"]["required"] == ["x", "y", "width", "height"]
+
 
 class TestListPrompts:
     def test_returns_3_prompts(self, server: Any) -> None:
@@ -244,6 +259,39 @@ class TestGetPrompt:
         with pytest.raises(ValueError, match="requires 'service'"):
             _invoke(handler, req)
 
+    def test_oauth_prompt_with_scopes(self, server: Any) -> None:
+        """scopes arg (optional) — incorporated into prompt per spec §6.4.1."""
+        handler = server.request_handlers[mcp_types.GetPromptRequest]
+        req = _make_get_prompt_request(
+            "oauth_confirmation_flow",
+            {"service": "github", "scopes": "user:read,user:write"},
+        )
+        result = _invoke(handler, req)
+        inner = result.root if hasattr(result, "root") else result
+        messages = inner.messages if hasattr(inner, "messages") else inner
+        assert "user:read,user:write" in messages[1].content.text
+        assert "Scopes needed" in messages[1].content.text
+
+    def test_oauth_prompt_without_scopes_still_works(self, server: Any) -> None:
+        """scopes arg optional — without it, default fallback message appears."""
+        handler = server.request_handlers[mcp_types.GetPromptRequest]
+        req = _make_get_prompt_request("oauth_confirmation_flow", {"service": "tiktok"})
+        result = _invoke(handler, req)
+        inner = result.root if hasattr(result, "root") else result
+        messages = inner.messages if hasattr(inner, "messages") else inner
+        assert "Scopes: detect dari OAuth provider" in messages[1].content.text
+
+    def test_oauth_prompt_scopes_in_list(self, server: Any) -> None:
+        """list_prompts declares scopes as optional arg."""
+        handler = server.request_handlers[mcp_types.ListPromptsRequest]
+        result = _invoke(handler, mcp_types.ListPromptsRequest())
+        inner = result.root if hasattr(result, "root") else result
+        prompts = inner.prompts if hasattr(inner, "prompts") else inner
+        oauth = next(p for p in prompts if p.name == "oauth_confirmation_flow")
+        arg_names = {a.name for a in oauth.arguments}
+        assert "service" in arg_names
+        assert "scopes" in arg_names
+
     def test_browser_debug_workflow(self, server: Any) -> None:
         handler = server.request_handlers[mcp_types.GetPromptRequest]
         req = _make_get_prompt_request(
@@ -275,6 +323,33 @@ class TestGetPrompt:
         assert len(messages) == 2
         assert "captcha" in messages[0].content.text
         assert "smart_session_pause" in messages[1].content.text
+
+    def test_human_intervention_with_context(self, server: Any) -> None:
+        """context arg (optional) — incorporated into User message per spec §6.4.1."""
+        handler = server.request_handlers[mcp_types.GetPromptRequest]
+        req = _make_get_prompt_request(
+            "human_intervention_workflow",
+            {
+                "challenge_type": "captcha",
+                "context": "submitting tax form, halaman konfirmasi muncul",
+            },
+        )
+        result = _invoke(handler, req)
+        inner = result.root if hasattr(result, "root") else result
+        messages = inner.messages if hasattr(inner, "messages") else inner
+        assert "submitting tax form" in messages[0].content.text
+        assert "captcha" in messages[0].content.text
+
+    def test_human_intervention_context_in_list(self, server: Any) -> None:
+        """list_prompts declares context as optional arg."""
+        handler = server.request_handlers[mcp_types.ListPromptsRequest]
+        result = _invoke(handler, mcp_types.ListPromptsRequest())
+        inner = result.root if hasattr(result, "root") else result
+        prompts = inner.prompts if hasattr(inner, "prompts") else inner
+        hi = next(p for p in prompts if p.name == "human_intervention_workflow")
+        arg_names = {a.name for a in hi.arguments}
+        assert "challenge_type" in arg_names
+        assert "context" in arg_names
 
     def test_human_intervention_missing_challenge_raises(self, server: Any) -> None:
         handler = server.request_handlers[mcp_types.GetPromptRequest]
